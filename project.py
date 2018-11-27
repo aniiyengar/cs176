@@ -30,7 +30,7 @@ def get_suffix_array(s):
     [8, 7, 5, 3, 1, 6, 4, 0, 2]
     """
     suffixes = [(s[i:], i) for i in range(len(s))]
-    suffixes = sorted(s)
+    suffixes = sorted(suffixes)
     return [i[1] for i in suffixes]
 
 def get_bwt(s, sa):
@@ -67,6 +67,7 @@ def get_M(F):
     for char in ALPHABET:
         if char not in M:
             M[char] = -1
+    return M
 
 def get_occ(L):
     """
@@ -81,10 +82,20 @@ def get_occ(L):
                 occ[j].append(occ[j][-1])
             else:
                 occ[i].append(occ[i][-1]+1)
-    '''for i in occ:
-        occ[i].pop(0)'''
+    for i in occ:
+        occ[i].pop(0)
     return occ
 
+def construct_L(M, occ):
+    length = 0
+    for char in occ:
+        length += occ[char][-1]
+    L = ['']*length
+    for char in occ:
+        for i in range(occ[char][-1]):
+            L[occ[char].index(i+1)] = char
+    return ''.join(L)
+    
 def exact_suffix_matches(p, M, occ):
     """
     Find the positions within the suffix array sa of the longest possible suffix of p 
@@ -129,11 +140,21 @@ def exact_suffix_matches(p, M, occ):
     >>> exact_suffix_matches('AA', M, occ)
     ((1, 11), 1)
     """
-    length = len(P)
-    sp = M[P[-1]]
-    ep = occ.index(occ[-1])
+    L = construct_L(M, occ)
+    length = len(p)
+    last_char = p[-1]
+    sp = M[last_char]
+    if sp == -1:
+        return (None, 0)
+    ep = occ[last_char].index(occ[last_char])
     for i in range(length-1,0,-1):
-        sp = M[P[i]] + occ[P[i]][
+        sp_ph = M[p[i]] + occ[p[i]][L[sp]-1]
+        ep_ph = M[p[i]] + occ[p[i]][L[ep]]-1
+        if sp_ph > ep_ph:
+            return ((sp,ep),length-i)
+        sp = sp_ph
+        ep = ep_ph
+    return ((sp,ep), length)
 
 MIN_INTRON_SIZE = 20
 MAX_INTRON_SIZE = 10000
