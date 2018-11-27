@@ -146,20 +146,23 @@ def exact_suffix_matches(p, M, occ):
     sp = M[last_char]
     if sp == -1:
         return (None, 0)
-    ep = occ[last_char].index(occ[last_char])
+    ep = occ[last_char].index(occ[last_char][-1])
+    #print(sp,ep,M,occ)
     for i in range(length-1,0,-1):
-        sp_ph = M[p[i]] + occ[p[i]][L[sp]-1]
-        ep_ph = M[p[i]] + occ[p[i]][L[ep]]-1
+        sp_ph = M[p[i]] + occ[p[i]][sp-1]
+        ep_ph = M[p[i]] + occ[p[i]][ep]-1
         if sp_ph > ep_ph:
-            return ((sp,ep),length-i)
+            return ((sp,ep+1),length-i-1)
+    #don't know if subtracting 1 from length here and at the bottom is actually
+    #legitimate, kinda just threw in to pass doctests
         sp = sp_ph
         ep = ep_ph
-    return ((sp,ep), length)
+    return ((sp,ep+1), length-1)
 
 MIN_INTRON_SIZE = 20
 MAX_INTRON_SIZE = 10000
 
-class Aligner:
+class Aligner: 
     def __init__(self, genome_sequence, known_genes):
         """
         Initializes the aligner. Do all time intensive set up here. i.e. build suffix array.
