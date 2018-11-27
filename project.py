@@ -140,24 +140,36 @@ def exact_suffix_matches(p, M, occ):
     >>> exact_suffix_matches('AA', M, occ)
     ((1, 11), 1)
     """
-    L = construct_L(M, occ)
+    
+    # initialize sp, ep
     length = len(p)
     last_char = p[-1]
     sp = M[last_char]
     if sp == -1:
         return (None, 0)
-    ep = occ[last_char].index(occ[last_char][-1])
-    #print(sp,ep,M,occ)
-    for i in range(length-1,0,-1):
+    
+    # find next(last_char)
+    nxt = float('inf')
+    nxt_item = None
+    for item in M:
+        if nxt > M[item] > M[last_char] and item != last_char:
+            nxt = M[item]
+            nxt_item = item
+    if nxt_item == None:
+        ep = length - 1
+    else:
+        ep = nxt - 1
+    
+    # changed for loop a bit, only works on strings len >= 2
+    # for strings of len 1, it skips to the end and works
+    for i in range(length-2,-1,-1):
         sp_ph = M[p[i]] + occ[p[i]][sp-1]
         ep_ph = M[p[i]] + occ[p[i]][ep]-1
         if sp_ph > ep_ph:
             return ((sp,ep+1),length-i-1)
-    #don't know if subtracting 1 from length here and at the bottom is actually
-    #legitimate, kinda just threw in to pass doctests
         sp = sp_ph
         ep = ep_ph
-    return ((sp,ep+1), length-1)
+    return ((sp,ep+1), length)
 
 MIN_INTRON_SIZE = 20
 MAX_INTRON_SIZE = 10000
