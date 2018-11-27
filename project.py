@@ -29,7 +29,9 @@ def get_suffix_array(s):
     >>> get_suffix_array('GATAGACA$')
     [8, 7, 5, 3, 1, 6, 4, 0, 2]
     """
-    pass
+    suffixes = [(s[i:], i) for i in range(len(s))]
+    suffixes = sorted(s)
+    return [i[1] for i in suffixes]
 
 def get_bwt(s, sa):
     """
@@ -40,7 +42,7 @@ def get_bwt(s, sa):
     Output:
         L: BWT of s as a string
     """
-    pass
+    return ''.join([s[i-1] for i in sa])
 
 def get_F(L):
     """
@@ -48,7 +50,7 @@ def get_F(L):
 
     Output: F, first column in Pi_sorted
     """
-    pass
+    return ''.join(sorted(list(L)))
 
 def get_M(F):
     """
@@ -57,7 +59,14 @@ def get_M(F):
 
     If a character "c" does not exist in F, you may set M[c] = -1
     """
-    pass
+    M = {}
+    for i in range(len(F)):
+        char = F[i]
+        if char not in M:
+            M[char] = i
+    for char in ALPHABET:
+        if char not in M:
+            M[char] = -1
 
 def get_occ(L):
     """
@@ -65,7 +74,16 @@ def get_occ(L):
     string character to a list of integers. If c is a string character and i is an integer, then OCC[c][i] gives
     the number of occurrences of character "c" in the bwt string up to and including index i
     """
-    pass
+    occ = {i: [0] for i in ALPHABET}
+    for i in L:
+        for j in occ:
+            if i != j:
+                occ[j].append(occ[j][-1])
+            else:
+                occ[i].append(occ[i][-1]+1)
+    '''for i in occ:
+        occ[i].pop(0)'''
+    return occ
 
 def exact_suffix_matches(p, M, occ):
     """
@@ -111,7 +129,11 @@ def exact_suffix_matches(p, M, occ):
     >>> exact_suffix_matches('AA', M, occ)
     ((1, 11), 1)
     """
-    pass
+    length = len(P)
+    sp = M[P[-1]]
+    ep = occ.index(occ[-1])
+    for i in range(length-1,0,-1):
+        sp = M[P[i]] + occ[P[i]][
 
 MIN_INTRON_SIZE = 20
 MAX_INTRON_SIZE = 10000
