@@ -254,6 +254,22 @@ class Aligner:
         isos_L = {}
         isos_M = {}
         isos_occ = {}
+        known_genes = []
+        with open('genes.tab') as f:
+            curr = f.readline().split()
+            gene_id = curr[1]
+            isoforms = []
+            while curr:
+                if curr[0] == 'gene':
+                    known_genes.append(Gene(gene_id, isoforms))
+                    gene_id = curr[1]
+                    isoforms = []
+                elif curr[1] == 'isoform':
+                    isoforms.append(Isoform(isoform_id, exons))
+                    isoform_id = curr[1]
+                    exons = []
+                else:
+                    exons.append([Exon(curr[1],curr[2],curr[3])])
         for gene in known_genes:
             for isoform in gene.isoforms:
                 spliced_isoform = ''
