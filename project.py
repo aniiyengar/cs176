@@ -29,28 +29,19 @@ def get_suffix_array(s):
     >>> get_suffix_array('GATAGACA$')
     [8, 7, 5, 3, 1, 6, 4, 0, 2]
     """
-    # def compare(i, j):
-    #     c = 0
-    #     while s[i + c] == s[j + c]:
-    #         c += 1
-    #     if s[i + c] > s[j + c]:
-    #         return 1
-    #     elif s[i + c] < s[j + c]:
-    #         return -1
-    #     else:
-    #         return 0
-
-    # suffixes = sorted(range(len(s)), cmp=compare)
-    # return suffixes
-
-    buckets = {}
-    for i in range(len(s)):
-        if s[i:i+3] in buckets:
-            buckets[s[i:i+3]].append(i)
+    def compare(i, j):
+        c = 0
+        while s[i + c] == s[j + c]:
+            c += 1
+        if s[i + c] > s[j + c]:
+            return 1
+        elif s[i + c] < s[j + c]:
+            return -1
         else:
-            buckets[s[i:i+3]] = [i]
+            return 0
 
-    print(buckets)
+    suffixes = sorted(range(len(s)), cmp=compare)
+    return suffixes
 
 def get_bwt(s, sa):
     """
@@ -191,6 +182,8 @@ def exact_suffix_matches(p, M, occ):
     return ((sp,ep+1), length)
 
 def bowtie(p, M, occ):
+    L = construct_L(M, occ)
+    num_mismatches = 0
     length = len(p)
     last_char = p[-1]
     sp = M[last_char]
@@ -214,11 +207,21 @@ def bowtie(p, M, occ):
     for i in range(length-2,-1,-1):
         sp_ph = M[p[i]] + occ[p[i]][sp-1]
         ep_ph = M[p[i]] + occ[p[i]][ep]-1
-        if sp_ph > ep_ph:
-            pass
+
+        ptr = ep
+        is_mismatch = False
+        while sp_ph > ep_ph and ptr >= ep:
+            new_char = L[ptr]
+            sp_ph = M[new_char] + occ[new_char][sp-1]
+            ep_ph = M[new_char] + occ[new_char][ep]-1
+            ptr -= 1
+            is_mismatch = True
+
+        num_mismatches += is_mismatch
         sp = sp_ph
         ep = ep_ph
-    return ((sp,ep+1), length)
+
+    return ((sp,ep+1), length, num_mismatches)
 
 MIN_INTRON_SIZE = 20
 MAX_INTRON_SIZE = 10000
