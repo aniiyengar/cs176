@@ -18,6 +18,24 @@ import time
 
 ALPHABET = [TERMINATOR] + BASES
 
+def cmp_to_key(mycmp):
+    'Convert a cmp= function into a key= function'
+    class K(object):
+        def __init__(self, obj, *args):
+            self.obj = obj
+        def __lt__(self, other):
+            return mycmp(self.obj, other.obj) < 0
+        def __gt__(self, other):
+            return mycmp(self.obj, other.obj) > 0
+        def __eq__(self, other):
+            return mycmp(self.obj, other.obj) == 0
+        def __le__(self, other):
+            return mycmp(self.obj, other.obj) <= 0  
+        def __ge__(self, other):
+            return mycmp(self.obj, other.obj) >= 0
+        def __ne__(self, other):
+            return mycmp(self.obj, other.obj) != 0
+    return K
 def get_suffix_array(s):
     """
     Naive implementation of suffix array generation (0-indexed). You do not have to implement the
@@ -49,11 +67,11 @@ def get_suffix_array(s):
         else:
             buckets[s[i:i+100]] = [i]
 
-    keys = buckets.keys()
+    keys = list(buckets.keys())
     for i in range(len(keys)):
         item = keys[i]
         if len(buckets[item]) > 1:
-            buckets[item].sort(cmp=compare)
+            buckets[item].sort(key=cmp_to_key(compare))
 
     result = []
     for item in sorted(keys):
@@ -123,7 +141,7 @@ def construct_L(M, occ):
         for i in range(occ[char][-1]):
             L[occ[char].index(i+1)] = char
     return ''.join(L)
-    
+
 def exact_suffix_matches(p, M, occ):
     """
     Find the positions within the suffix array sa of the longest possible suffix of p 
@@ -200,7 +218,6 @@ def exact_suffix_matches(p, M, occ):
     return ((sp,ep+1), length)
 
 def bowtie(p, M, occ):
-    L = construct_L(M, occ)
     num_mismatches = 0
     length = len(p)
     last_char = p[-1]
@@ -226,20 +243,20 @@ def bowtie(p, M, occ):
         sp_ph = M[p[i]] + occ[p[i]][sp-1]
         ep_ph = M[p[i]] + occ[p[i]][ep]-1
 
-        ptr = ep
+        poss_switches = ALPHABET.copy()
+        poss_switches.remove(p[i])
         is_mismatch = False
-        while sp_ph > ep_ph and ptr >= ep:
-            new_char = L[ptr]
+        while sp_ph > ep_ph and poss_switches:
+            new_char = poss_switches.pop()
             sp_ph = M[new_char] + occ[new_char][sp-1]
             ep_ph = M[new_char] + occ[new_char][ep]-1
-            ptr -= 1
             is_mismatch = True
 
         num_mismatches += is_mismatch
         sp = sp_ph
         ep = ep_ph
 
-    return ((sp,ep+1), length, num_mismatches)
+    return ((sp,ep+1), num_mismatches)
 
 MIN_INTRON_SIZE = 20
 MAX_INTRON_SIZE = 10000
@@ -273,7 +290,8 @@ class Aligner:
         isos_M = {}
         isos_occ = {}
         isos = {}
-
+        iso_exon_starts = {}
+        iso_names = []
         known_genes = []
         with open('genes.tab') as f:
             curr = f.readline().split()
@@ -287,7 +305,7 @@ class Aligner:
                     if exons:
                         isoforms.append(Isoform(isoform_id,exons))
                     if first_gene != -1:
-                        genes.append(Gene(gene_id, isoforms))
+                        known_genes.append(Gene(gene_id, isoforms))
                     else:
                         first_gene = 0
                     gene_id = curr[1]
@@ -310,9 +328,14 @@ class Aligner:
                 spliced_isoform = ''
                 i = isoform.id
                 isos[i] = isoform
+                prev = 0
+                iso_exon_starts[i] = []
+                curr = 0
                 for exon in isoform.exons:
                     exon_str = genome_sequence[exon.start:exon.end]
                     spliced_isoform += exon_str
+                    curr += len(exon_str)
+                    iso_exon_starts[i].append(curr)
                 spliced_isoform += '$'
                 isos_sa[i] = get_suffix_array(spliced_isoform)
                 isos_L[i] = get_bwt(spliced_isoform, isos_sa[i])
@@ -327,6 +350,7 @@ class Aligner:
         self.isos_occ = isos_occ
         self.iso_names = iso_names
         self.isos = isos
+        self.iso_exon_starts = iso_exon_starts
 
     def align(self, read_sequence):
         """
@@ -351,24 +375,32 @@ class Aligner:
         min_mismatches = float('inf')
         best_match = None
         for iso_name in self.iso_names:
-            match_range, match_length, num_mismatches = bowtie(read_sequence, self.isos_M[iso_name], self.isos_occ[iso_name])
-            min_mismatches = min(num_mismatches, min_mismatches)
-            best_match = (iso_name, match_range, match_length)
-
+            match_range, num_mismatches = bowtie(read_sequence, self.isos_M[iso_name], self.isos_occ[iso_name])
+            if num_mismatches < min_mismatches:
+                min_mismatches = num_mismatches
+                best_match = (iso_name, match_range)
+        
+        alignment = []
+        seqlength = len(read_sequence)
+        
         if min_mismatches <= 6 and best_match:
             # we have a match, direct to transcriptome
             # if we have multiple matches, it'll be weird but just take the first one
-            iso_name, match_range, match_length = best_match
+            iso_name, match_range = best_match
             start_pt = self.isos_sa[iso_name][match_range[0]] # start pt in spliced isoform
             start_ct = start_pt
+            curr_pt = start_pt
             # get exon where the match starts
             exon_ct = 0
-            for exon in self.isos[iso_name].exons:
-                exon_len = exon.end - exon.start
-                if start_ct < exon_len:
-                    break
-                else:
-                    start_ct -= exon_len
-                    exon_ct += 1
-
+            exons = self.isos[iso_name].exons
+            last = len(exons)-1
+            for i in range(len(exons)):
+                exon = exons[i]
+                if exon.start < curr_pt < exon.end:
+                    offset = exon.end-curr_pt
+                    alignment.append((0, curr_pt, offset))
+                    seqlength -= offset
+                    if i != last and seqlength > 0:
+                        curr_pt = exon[i+1].start
+        return alignment
             
