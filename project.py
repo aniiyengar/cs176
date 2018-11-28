@@ -14,6 +14,8 @@
 import sys # DO NOT EDIT THIS
 from shared import *
 
+import time
+
 ALPHABET = [TERMINATOR] + BASES
 
 def get_suffix_array(s):
@@ -239,10 +241,14 @@ class Aligner:
                     so don't stress if you are close. Server is 1.25 times faster than the i7 CPU on my computer
 
         """
+        last_time = time.time()
         self.genome_sa = get_suffix_array(genome_sequence)
         self.genome_L = get_bwt(genome_sequence, self.genome_sa)
         self.genome_M = get_M(get_F(self.genome_L))
         self.genome_occ = get_occ(self.genome_L)
+        
+        print('FM index of genome: ' + str(time.time() - last_time))
+        last_time = time.time()
         
         isos_sa = {}
         isos_L = {}
@@ -255,10 +261,18 @@ class Aligner:
                 for exon in isoform.exons:
                     exon_str = genome_sequence[exon.start:exon.end]
                     spliced_isoform += exon_str
+                spliced_isoform += '$'
                 isos_sa[i] = get_suffix_array(spliced_isoform)
                 isos_L[i] = get_bwt(spliced_isoform, isos_sa[i])
                 isos_M[i] = get_M(get_F(isos_L[i]))
                 isos_occ[i] = get_occ(isos_L[i])
+                print('FM index of isoform, length %d: ' % len(spliced_isoform) + str(time.time() - last_time))
+                last_time = time.time()
+        
+        self.isos_sa = isos_sa
+        self.isos_L = isos_L
+        self.isos_M = isos_M
+        self.isos_occ = isos_occ
 
     def align(self, read_sequence):
         """
