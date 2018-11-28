@@ -29,9 +29,28 @@ def get_suffix_array(s):
     >>> get_suffix_array('GATAGACA$')
     [8, 7, 5, 3, 1, 6, 4, 0, 2]
     """
-    suffixes = [(s[i:], i) for i in range(len(s))]
-    suffixes = sorted(suffixes)
-    return [i[1] for i in suffixes]
+    # def compare(i, j):
+    #     c = 0
+    #     while s[i + c] == s[j + c]:
+    #         c += 1
+    #     if s[i + c] > s[j + c]:
+    #         return 1
+    #     elif s[i + c] < s[j + c]:
+    #         return -1
+    #     else:
+    #         return 0
+
+    # suffixes = sorted(range(len(s)), cmp=compare)
+    # return suffixes
+
+    buckets = {}
+    for i in range(len(s)):
+        if s[i:i+3] in buckets:
+            buckets[s[i:i+3]].append(i)
+        else:
+            buckets[s[i:i+3]] = [i]
+
+    print(buckets)
 
 def get_bwt(s, sa):
     """
@@ -171,6 +190,36 @@ def exact_suffix_matches(p, M, occ):
         ep = ep_ph
     return ((sp,ep+1), length)
 
+def bowtie(p, M, occ):
+    length = len(p)
+    last_char = p[-1]
+    sp = M[last_char]
+    if sp == -1:
+        return (None, 0)
+    
+    # find next(last_char)
+    nxt = float('inf')
+    nxt_item = None
+    for item in M:
+        if nxt > M[item] > M[last_char] and item != last_char:
+            nxt = M[item]
+            nxt_item = item
+    if nxt_item == None:
+        ep = len(occ['$']) - 1
+    else:
+        ep = nxt - 1
+    
+    # changed for loop a bit, only works on strings len >= 2
+    # for strings of len 1, it skips to the end and works
+    for i in range(length-2,-1,-1):
+        sp_ph = M[p[i]] + occ[p[i]][sp-1]
+        ep_ph = M[p[i]] + occ[p[i]][ep]-1
+        if sp_ph > ep_ph:
+            pass
+        sp = sp_ph
+        ep = ep_ph
+    return ((sp,ep+1), length)
+
 MIN_INTRON_SIZE = 20
 MAX_INTRON_SIZE = 10000
 
@@ -187,7 +236,10 @@ class Aligner:
                     so don't stress if you are close. Server is 1.25 times faster than the i7 CPU on my computer
 
         """
-        pass
+        self.genome_sa = get_suffix_array(genome_sequence)
+        self.genome_L = get_bwt(genome_sequence, self.genome_sa)
+        self.genome_M = get_M(get_F(self.genome_L))
+        self.genome_occ = get_occ(self.genome_L)
 
     def align(self, read_sequence):
         """
