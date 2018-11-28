@@ -258,6 +258,14 @@ def bowtie(p, M, occ):
 
     return ((sp,ep+1), num_mismatches)
 
+def suffix_replacer(hits):
+    (start, end), length = hits
+    genome_seqs = []
+    for i in range(start,end):
+        index = a.genome_sa[i]
+        genome_seqs.append((index,index+length))
+    return genome_seqs
+
 MIN_INTRON_SIZE = 20
 MAX_INTRON_SIZE = 10000
 
@@ -383,24 +391,80 @@ class Aligner:
         alignment = []
         seqlength = len(read_sequence)
         
+        #Transcriptome Alignment
         if min_mismatches <= 6 and best_match:
             # we have a match, direct to transcriptome
             # if we have multiple matches, it'll be weird but just take the first one
             iso_name, match_range = best_match
-            start_pt = self.isos_sa[iso_name][match_range[0]] # start pt in spliced isoform
-            start_ct = start_pt
-            curr_pt = start_pt
-            # get exon where the match starts
-            exon_ct = 0
+            curr = self.isos_sa[iso_name][match_range[0]] # start pt in spliced isoform
+            print(curr)
+            exon_starts = self.iso_exon_starts[iso_name]
+            exon_num = 0
+            curr_pt = 0
+            for i in range(len(exon_starts)):
+                if curr < exon_starts[i]:
+                    exon_num = i
+                    break
             exons = self.isos[iso_name].exons
-            last = len(exons)-1
-            for i in range(len(exons)):
-                exon = exons[i]
-                if exon.start < curr_pt < exon.end:
-                    offset = exon.end-curr_pt
-                    alignment.append((0, curr_pt, offset))
-                    seqlength -= offset
-                    if i != last and seqlength > 0:
-                        curr_pt = exon[i+1].start
-        return alignment
+            print(exons)
+            print(exon_starts)
+            read_pt = 0
+            curr_pt = exons[exon_num].start + curr
+            while seqlength:
+                offset = exons[exon_num].end-curr_pt
+                diff = min(offset, seqlength)
+                alignment.append((read_pt, curr_pt, diff))
+                seqlength -= diff
+                curr_pt += diff
+                read_pt += diff
+                exon_num += 1
+            return alignment
+        #Genome Alignment
+        else:
+            min_mis = 7
+            best_hits = []
+            hits = bowtie(read, a.genome_M, a.genome_occ)
+            curr_mis = hits[1]
+            if curr_mis < min_mis:
+                min_mis = curr_mis
+                best_hits = [(0, suffix_replacer(hits)[0][0], 50)]
+            for offset in range(10, 41):
+                seed1, seed2 = read[:offset], read[offset:]
+                hits1 = bowtie(seed1, a.genome_M, a.genome_occ)
+                hits2 = bowtie(seed2, a.genome_M, a.genome_occ)
+                curr_mis = hits1[1] + hits2[1]
+                if curr_mis < min_mis:
+                    hits1 = suffix_replacer(hits1)
+                    hits2 = suffix_replacer(hits2)
+                    for seq1 in hits1:
+                        for seq2 in hits2:
+                            if MIN_INTRON_SIZE < seq2[0] - seq1[1] < MAX_INTRON_SIZE:
+                                min_mis = curr_mis
+                                seq1len = len(seq1)
+                                seq2len = len(seq2)
+                                best_hits = [(0, seq1[0], seq1len), (seq1len, seq2[0], seq2len)]
+                                break
+            for offset1 in range(10,31):
+                for offset2 in range(10+offset1, 41):
+                    seed1, seed2,seed3 = read[:offset1], read[offset1:offset2], read[offset2:]
+                    hits1 = bowtie(seed1, a.genome_M, a.genome_occ)
+                    hits2 = bowtie(seed2, a.genome_M, a.genome_occ)
+                    hits3 = bowtie(seed3, a.genome_M, a.genome_occ)
+                    curr_mis = hits1[1] + hits2[1] + hits3[1]
+                    if curr_mis < min_mis:
+                        hits1 = suffix_replacer(hits1)
+                        hits2 = suffix_replacer(hits2)
+                        hits3 = suffix_replacer(hits3)
+                        for seq1 in hits1:
+                            for seq2 in hits2:
+                                for seq3 in hits3:
+                                    if MIN_INTRON_SIZE < seq2[0] - seq1[1] < MAX_INTRON_SIZE and MIN_INTRON_SIZE < seq3[0] - seq2[1] < MAX_INTRON_SIZE:
+                                        min_mis = curr_mis
+                                        seq1len = len(seq1)
+                                        seq2len = len(seq2)
+                                        seq3len = len(seq3)
+                                        best_hits = [(0, seq1[0], seq1len), (seq1len, seq2[0], seq2len), (seq1len+seq2len, seq3[0], seq3len)]
+                                        break
+            return best_hits
+        return []
             
