@@ -255,6 +255,7 @@ class Aligner:
         isos_M = {}
         isos_occ = {}
         known_genes = []
+
         with open('genes.tab') as f:
             curr = f.readline().split()
             gene_id = curr[1]
@@ -270,8 +271,11 @@ class Aligner:
                     exons = []
                 else:
                     exons.append([Exon(curr[1],curr[2],curr[3])])
+        
+        iso_names = []
         for gene in known_genes:
             for isoform in gene.isoforms:
+                iso_names.append(isoform.id)
                 spliced_isoform = ''
                 i = isoform.id
                 for exon in isoform.exons:
@@ -289,6 +293,7 @@ class Aligner:
         self.isos_L = isos_L
         self.isos_M = isos_M
         self.isos_occ = isos_occ
+        self.iso_names = iso_names
 
     def align(self, read_sequence):
         """
@@ -307,5 +312,10 @@ class Aligner:
 
         Time limit: 0.5 seconds per read on average on the provided data.
         """
-        pass
+        
+        # bowtie, read to isoforms
+        for iso_name in self.iso_names:
+            # find inexact matches
+            matches = bowtie(read_sequence, self.isos_M[iso_name], self.isos_occ[iso_name])
+            print(matches)
         
