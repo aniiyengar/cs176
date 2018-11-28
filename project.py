@@ -156,7 +156,7 @@ def exact_suffix_matches(p, M, occ):
             nxt = M[item]
             nxt_item = item
     if nxt_item == None:
-        ep = length - 1
+        ep = len(occ['$']) - 1
     else:
         ep = nxt - 1
     
