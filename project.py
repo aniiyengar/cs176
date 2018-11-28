@@ -258,18 +258,21 @@ class Aligner:
         with open('genes.tab') as f:
             curr = f.readline().split()
             gene_id = curr[1]
+            isoform_id = ''
             isoforms = []
+            exons = []
             while curr:
                 if curr[0] == 'gene':
-                    known_genes.append(Gene(gene_id, isoforms))
+                    genes.append(Gene(gene_id, isoforms))
                     gene_id = curr[1]
                     isoforms = []
-                elif curr[1] == 'isoform':
+                elif curr[0] == 'isoform':
                     isoforms.append(Isoform(isoform_id, exons))
                     isoform_id = curr[1]
                     exons = []
-                else:
-                    exons.append([Exon(curr[1],curr[2],curr[3])])
+                elif curr[0] == 'exon':
+                    exons.append(Exon(curr[1],int(curr[2]),int(curr[3])))
+                curr = f.readline().split()
         for gene in known_genes:
             for isoform in gene.isoforms:
                 spliced_isoform = ''
