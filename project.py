@@ -243,6 +243,22 @@ class Aligner:
         self.genome_L = get_bwt(genome_sequence, self.genome_sa)
         self.genome_M = get_M(get_F(self.genome_L))
         self.genome_occ = get_occ(self.genome_L)
+        
+        isos_sa = {}
+        isos_L = {}
+        isos_M = {}
+        isos_occ = {}
+        for gene in known_genes:
+            for isoform in gene.isoforms:
+                spliced_isoform = ''
+                i = isoform.id
+                for exon in isoform.exons:
+                    exon_str = genome_sequence[exon.start:exon.end]
+                    spliced_isoform += exon_str
+                isos_sa[i] = get_suffix_array(spliced_isoform)
+                isos_L[i] = get_bwt(spliced_isoform, isos_sa[i])
+                isos_M[i] = get_M(get_F(isos_L[i]))
+                isos_occ[i] = get_occ(isos_L[i])
 
     def align(self, read_sequence):
         """
@@ -262,3 +278,4 @@ class Aligner:
         Time limit: 0.5 seconds per read on average on the provided data.
         """
         pass
+        
