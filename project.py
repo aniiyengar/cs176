@@ -41,9 +41,25 @@ def get_suffix_array(s):
             return -1
         else:
             return 0
+    
+    buckets = {}
+    for i in range(len(s)):
+        if s[i:i+100] in buckets:
+            buckets[s[i:i+100]].append(i)
+        else:
+            buckets[s[i:i+100]] = [i]
 
-    suffixes = sorted(range(len(s)), cmp=compare)
-    return suffixes
+    keys = buckets.keys()
+    for i in range(len(keys)):
+        item = keys[i]
+        if len(buckets[item]) > 1:
+            buckets[item].sort(cmp=compare)
+
+    result = []
+    for item in sorted(keys):
+        result.extend(buckets[item])
+
+    return result
 
 def get_bwt(s, sa):
     """
@@ -241,6 +257,8 @@ class Aligner:
                     so don't stress if you are close. Server is 1.25 times faster than the i7 CPU on my computer
 
         """
+        with open('genome.fa') as f:
+            genome_sequence = f.read().split()[1].strip() + '$'
         last_time = time.time()
         self.genome_sa = get_suffix_array(genome_sequence)
         self.genome_L = get_bwt(genome_sequence, self.genome_sa)
@@ -254,30 +272,44 @@ class Aligner:
         isos_L = {}
         isos_M = {}
         isos_occ = {}
-        known_genes = []
+        isos = {}
 
+        known_genes = []
         with open('genes.tab') as f:
             curr = f.readline().split()
             gene_id = curr[1]
+            isoform_id = ''
             isoforms = []
+            exons = []
+            first_gene = -1
             while curr:
                 if curr[0] == 'gene':
-                    known_genes.append(Gene(gene_id, isoforms))
+                    if exons:
+                        isoforms.append(Isoform(isoform_id,exons))
+                    if first_gene != -1:
+                        genes.append(Gene(gene_id, isoforms))
+                    else:
+                        first_gene = 0
                     gene_id = curr[1]
                     isoforms = []
-                elif curr[1] == 'isoform':
-                    isoforms.append(Isoform(isoform_id, exons))
+                    first_iso = -1
+                elif curr[0] == 'isoform':
+                    if first_iso != -1:
+                        isoforms.append(Isoform(isoform_id, exons))
+                    else:
+                        first_iso = 0
                     isoform_id = curr[1]
                     exons = []
-                else:
-                    exons.append([Exon(curr[1],curr[2],curr[3])])
+                elif curr[0] == 'exon':
+                    exons.append(Exon(curr[1],int(curr[2]),int(curr[3])))
+                curr = f.readline().split()
         
-        iso_names = []
         for gene in known_genes:
             for isoform in gene.isoforms:
                 iso_names.append(isoform.id)
                 spliced_isoform = ''
                 i = isoform.id
+                isos[i] = isoform
                 for exon in isoform.exons:
                     exon_str = genome_sequence[exon.start:exon.end]
                     spliced_isoform += exon_str
@@ -294,6 +326,7 @@ class Aligner:
         self.isos_M = isos_M
         self.isos_occ = isos_occ
         self.iso_names = iso_names
+        self.isos = isos
 
     def align(self, read_sequence):
         """
@@ -314,8 +347,28 @@ class Aligner:
         """
         
         # bowtie, read to isoforms
+        # first see if the read matches a known isoform for under 6 mismatches
+        min_mismatches = float('inf')
+        best_match = None
         for iso_name in self.iso_names:
-            # find inexact matches
-            matches = bowtie(read_sequence, self.isos_M[iso_name], self.isos_occ[iso_name])
-            print(matches)
-        
+            match_range, match_length, num_mismatches = bowtie(read_sequence, self.isos_M[iso_name], self.isos_occ[iso_name])
+            min_mismatches = min(num_mismatches, min_mismatches)
+            best_match = (iso_name, match_range, match_length)
+
+        if min_mismatches <= 6 and best_match:
+            # we have a match, direct to transcriptome
+            # if we have multiple matches, it'll be weird but just take the first one
+            iso_name, match_range, match_length = best_match
+            start_pt = self.isos_sa[iso_name][match_range[0]] # start pt in spliced isoform
+            start_ct = start_pt
+            # get exon where the match starts
+            exon_ct = 0
+            for exon in self.isos[iso_name].exons:
+                exon_len = exon.end - exon.start
+                if start_ct < exon_len:
+                    break
+                else:
+                    start_ct -= exon_len
+                    exon_ct += 1
+
+            
