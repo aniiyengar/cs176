@@ -359,16 +359,10 @@ class Aligner:
                     so don't stress if you are close. Server is 1.25 times faster than the i7 CPU on my computer
 
         """
-        with open('genome.fa') as f:
-            genome_sequence = f.read().split()[1].strip() + '$'
-        last_time = time.time()
         self.genome_sa = get_suffix_array(genome_sequence)
         self.genome_L = get_bwt(genome_sequence, self.genome_sa)
         self.genome_M = get_M(get_F(self.genome_L))
         self.genome_occ = get_occ(self.genome_L)
-        
-        print('FM index of genome: ' + str(time.time() - last_time))
-        last_time = time.time()
         
         isos_sa = {}
         isos_L = {}
@@ -378,34 +372,6 @@ class Aligner:
         iso_exon_starts = {}
         iso_names = []
         known_genes = []
-        with open('genes.tab') as f:
-            curr = f.readline().split()
-            gene_id = curr[1]
-            isoform_id = ''
-            isoforms = []
-            exons = []
-            first_gene = -1
-            while curr:
-                if curr[0] == 'gene':
-                    if exons:
-                        isoforms.append(Isoform(isoform_id,exons))
-                    if first_gene != -1:
-                        known_genes.append(Gene(gene_id, isoforms))
-                    else:
-                        first_gene = 0
-                    gene_id = curr[1]
-                    isoforms = []
-                    first_iso = -1
-                elif curr[0] == 'isoform':
-                    if first_iso != -1:
-                        isoforms.append(Isoform(isoform_id, exons))
-                    else:
-                        first_iso = 0
-                    isoform_id = curr[1]
-                    exons = []
-                elif curr[0] == 'exon':
-                    exons.append(Exon(curr[1],int(curr[2]),int(curr[3])))
-                curr = f.readline().split()
         
         for gene in known_genes:
             for isoform in gene.isoforms:
@@ -426,8 +392,6 @@ class Aligner:
                 isos_L[i] = get_bwt(spliced_isoform, isos_sa[i])
                 isos_M[i] = get_M(get_F(isos_L[i]))
                 isos_occ[i] = get_occ(isos_L[i])
-                print('FM index of isoform, length %d: ' % len(spliced_isoform) + str(time.time() - last_time))
-                last_time = time.time()
         
         self.isos_sa = isos_sa
         self.isos_L = isos_L
@@ -482,7 +446,6 @@ class Aligner:
             # if we have multiple matches, it'll be weird but just take the first one
             iso_name, match_range = best_match
             curr = self.isos_sa[iso_name][match_range[0]] # start pt in spliced isoform
-            print(curr)
             exon_starts = self.iso_exon_starts[iso_name]
             exon_num = 0
             curr_pt = 0
@@ -491,8 +454,6 @@ class Aligner:
                     exon_num = i
                     break
             exons = self.isos[iso_name].exons
-            print(exons)
-            print(exon_starts)
             read_pt = 0
             curr_pt = exons[exon_num].start + curr
             while seqlength:
