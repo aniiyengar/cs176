@@ -281,7 +281,7 @@ def bowtie(p, M, occ):
     else:
         return ((sp,ep+1), num_mismatches)
 
-def bowtie_offset(p, M, occ, mismatches):
+def bowtie_offset(p, M, occ, mismatches, n):
     num_mismatches = 0
     length = len(p)
     last_char = p[-1]
@@ -304,9 +304,14 @@ def bowtie_offset(p, M, occ, mismatches):
     # changed for loop a bit, only works on strings len >= 2
     # for strings of len 1, it skips to the end and works
     for i in range(length-2,-1,-1):
+        last1 = p[i + 1]
+        if i < length - 1:
+            last2 = p[i + 2] + p[i + 1]
+        else:
+            last2 = last1 + last1
         if i in mismatches:
             # force a mismatch here
-            poss_switches = list('$CGAT')
+            poss_switches = list(n(last1, last2))
             poss_switches.remove(p[i])
             sp_ph = 1
             ep_ph = 0
@@ -363,7 +368,34 @@ class Aligner:
         self.genome_L = get_bwt(genome_sequence, self.genome_sa)
         self.genome_M = get_M(get_F(self.genome_L))
         self.genome_occ = get_occ(self.genome_L)
-        
+
+        buckets2 = {{x: 0 for x in 'ACTG'} for _ in 'ACTG'}
+        for i in range(1, len(genome_sequence)):
+            buckets2[genome_sequence[i]][genome_sequence[i - 1]] += 1
+
+        cp = []
+        for x in 'ACTG':
+            for y in 'ACTG':
+                cp.append(x + y)
+        buckets3 = {{x: 0 for x in 'ACTG'} for _ in cp}
+
+        for i in range(2, len(genome_sequence)):
+            buckets2[genome_sequence[i-2] + genome_sequence[i-1]][genome_sequence[i]] += 1
+
+        # normalize buckets
+        for item in buckets2:
+            s = sum(buckets2[item]).items()
+            for item1 in buckets2[item]:
+                buckets2[item][item1] /= s
+
+        for item in buckets3:
+            s = sum(buckets3[item]).items()
+            for item1 in buckets3[item]:
+                buckets3[item][item1] /= s
+
+        def get_next(last1, last2):
+            return '$' + 'ACTG'.sort(key=lambda x: -(buckets2[x][last1] * 0.6 + buckets3[x][last2] * 0.4))
+        self.get_next = get_next
         isos_sa = {}
         isos_L = {}
         isos_M = {}
@@ -432,7 +464,7 @@ class Aligner:
         min_mismatches = float('inf')
         best_match = None
         for iso_name in self.iso_names:
-            match_range, num_mismatches = bowtie(read_sequence, self.isos_M[iso_name], self.isos_occ[iso_name])
+            match_range, num_mismatches = bowtie(read_sequence, self.isos_M[iso_name], self.isos_occ[iso_name], self.get_next)
             if num_mismatches < min_mismatches:
                 min_mismatches = num_mismatches
                 best_match = (iso_name, match_range)
@@ -469,15 +501,15 @@ class Aligner:
         else:
             min_mis = 7
             best_hits = []
-            hits = bowtie(read, self.genome_M, self.genome_occ)
+            hits = bowtie(read, self.genome_M, self.genome_occ, self.get_next)
             curr_mis = hits[1]
             if curr_mis < min_mis:
                 min_mis = curr_mis
                 best_hits = [(0, suffix_replacer(hits)[0][0], 50)]
             for offset in range(10, 41):
                 seed1, seed2 = read[:offset], read[offset:]
-                hits1 = bowtie(seed1, self.genome_M, self.genome_occ)
-                hits2 = bowtie(seed2, self.genome_M, self.genome_occ)
+                hits1 = bowtie(seed1, self.genome_M, self.genome_occ, self.get_next)
+                hits2 = bowtie(seed2, self.genome_M, self.genome_occ, self.get_next)
                 curr_mis = hits1[1] + hits2[1]
                 if curr_mis < min_mis:
                     hits1 = suffix_replacer(hits1)
@@ -493,9 +525,9 @@ class Aligner:
             for offset1 in range(10,31):
                 for offset2 in range(10+offset1, 41):
                     seed1, seed2,seed3 = read[:offset1], read[offset1:offset2], read[offset2:]
-                    hits1 = bowtie(seed1, self.genome_M, self.genome_occ)
-                    hits2 = bowtie(seed2, self.genome_M, self.genome_occ)
-                    hits3 = bowtie(seed3, self.genome_M, self.genome_occ)
+                    hits1 = bowtie(seed1, self.genome_M, self.genome_occ, self.get_next)
+                    hits2 = bowtie(seed2, self.genome_M, self.genome_occ, self.get_next)
+                    hits3 = bowtie(seed3, self.genome_M, self.genome_occ, self.get_next)
                     curr_mis = hits1[1] + hits2[1] + hits3[1]
                     if curr_mis < min_mis:
                         hits1 = suffix_replacer(hits1)
