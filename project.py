@@ -237,13 +237,17 @@ def bowtie(p, M, occ):
     else:
         ep = nxt - 1
     
+    first_mismatch = -1
+    should_replace = False
+    best_align = None
+    best_align_score = float('inf')
     # changed for loop a bit, only works on strings len >= 2
     # for strings of len 1, it skips to the end and works
     for i in range(length-2,-1,-1):
         sp_ph = M[p[i]] + occ[p[i]][sp-1]
         ep_ph = M[p[i]] + occ[p[i]][ep]-1
 
-        poss_switches = ALPHABET.copy()
+        poss_switches = list('$CGAT')
         poss_switches.remove(p[i])
         is_mismatch = False
         while sp_ph > ep_ph and poss_switches:
@@ -252,9 +256,78 @@ def bowtie(p, M, occ):
             ep_ph = M[new_char] + occ[new_char][ep]-1
             is_mismatch = True
 
+            if first_mismatch == -1:
+                first_mismatch = i
+
         num_mismatches += is_mismatch
         sp = sp_ph
         ep = ep_ph
+
+        if num_mismatches > 6:
+            should_replace = True
+
+    if should_replace:
+        for j in range(first_mismatch - 1, -1, -1):
+            a = bowtie_offset(p, M, occ, j)
+            if a[1] < best_align_score:
+                best_align = a
+                best_align_score = a[1]
+
+        return best_align
+    else:
+        return ((sp,ep+1), num_mismatches)
+
+def bowtie_offset(p, M, occ, first_mismatch):
+    num_mismatches = 0
+    length = len(p)
+    last_char = p[-1]
+    sp = M[last_char]
+    if sp == -1:
+        return (None, 0)
+    
+    # find next(last_char)
+    nxt = float('inf')
+    nxt_item = None
+    for item in M:
+        if nxt > M[item] > M[last_char] and item != last_char:
+            nxt = M[item]
+            nxt_item = item
+    if nxt_item == None:
+        ep = len(occ['$']) - 1
+    else:
+        ep = nxt - 1
+
+    # changed for loop a bit, only works on strings len >= 2
+    # for strings of len 1, it skips to the end and works
+    for i in range(length-2,-1,-1):
+        if i == first_mismatch:
+            # force a mismatch here
+            poss_switches = ALPHABET.copy()
+            poss_switches.remove(p[i])
+            sp_ph = 1
+            ep_ph = 0
+            while sp_ph > ep_ph and poss_switches:
+                new_char = poss_switches.pop()
+                sp_ph = M[new_char] + occ[new_char][sp-1]
+                ep_ph = M[new_char] + occ[new_char][ep]-1
+
+            num_mismatches = 1
+        else:
+            sp_ph = M[p[i]] + occ[p[i]][sp-1]
+            ep_ph = M[p[i]] + occ[p[i]][ep]-1
+
+            poss_switches = ALPHABET.copy()
+            poss_switches.remove(p[i])
+            is_mismatch = False
+            while sp_ph > ep_ph and poss_switches:
+                new_char = poss_switches.pop()
+                sp_ph = M[new_char] + occ[new_char][sp-1]
+                ep_ph = M[new_char] + occ[new_char][ep]-1
+                is_mismatch = True
+
+            num_mismatches += is_mismatch
+            sp = sp_ph
+            ep = ep_ph
 
     return ((sp,ep+1), num_mismatches)
 
@@ -468,3 +541,8 @@ class Aligner:
             return best_hits
         return []
             
+s = 'CATCGATGCTAGCTAGCTAGTCAGTCGATGCTAGCTAGTCGATGTCGATGCTAGCTAGCTAGTCGATGCATGCTAGCTAGTCAGTCGATCGATGCTAGCTAGCTAGTCGATCGATCGATGCTAGCTAGCTAGCTAGCTAGTCGATCGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGTCGATCGATGCTAGCTAGTCGATGCTGCATGATCGATAGCTAGC$'
+sa = get_suffix_array(s)
+L = get_bwt(s, sa)
+M = get_M(get_F(L))
+occ = get_occ(L)
