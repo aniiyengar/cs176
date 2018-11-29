@@ -15,6 +15,7 @@ import sys # DO NOT EDIT THIS
 from shared import *
 
 import time
+import multiprocessing as mp
 
 ALPHABET = [TERMINATOR] + BASES
 
@@ -239,8 +240,6 @@ def bowtie(p, M, occ):
     
     first_mismatch = -1
     should_replace = False
-    best_align = None
-    best_align_score = float('inf')
     # changed for loop a bit, only works on strings len >= 2
     # for strings of len 1, it skips to the end and works
     for i in range(length-2,-1,-1):
@@ -263,21 +262,19 @@ def bowtie(p, M, occ):
         sp = sp_ph
         ep = ep_ph
 
-        if num_mismatches > 6:
-            should_replace = True
-
-    if should_replace:
-        for j in range(first_mismatch - 1, -1, -1):
+    if num_mismatches > 6:
+        best_align_score = num_mismatches
+        best_align = ((sp,ep+1), num_mismatches)
+        for j in range(len(p)/2, len(p)):
             a = bowtie_offset(p, M, occ, j)
             if a[1] < best_align_score:
                 best_align = a
                 best_align_score = a[1]
-
         return best_align
     else:
         return ((sp,ep+1), num_mismatches)
 
-def bowtie_offset(p, M, occ, first_mismatch):
+def bowtie_offset(p, M, occ, mismatches):
     num_mismatches = 0
     length = len(p)
     last_char = p[-1]
@@ -300,7 +297,7 @@ def bowtie_offset(p, M, occ, first_mismatch):
     # changed for loop a bit, only works on strings len >= 2
     # for strings of len 1, it skips to the end and works
     for i in range(length-2,-1,-1):
-        if i == first_mismatch:
+        if i in mismatches:
             # force a mismatch here
             poss_switches = list('$CGAT')
             poss_switches.remove(p[i])
@@ -311,7 +308,7 @@ def bowtie_offset(p, M, occ, first_mismatch):
                 sp_ph = M[new_char] + occ[new_char][sp-1]
                 ep_ph = M[new_char] + occ[new_char][ep]-1
 
-            num_mismatches = 1
+            num_mismatches += 1
         else:
             sp_ph = M[p[i]] + occ[p[i]][sp-1]
             ep_ph = M[p[i]] + occ[p[i]][ep]-1
