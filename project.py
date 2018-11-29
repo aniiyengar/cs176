@@ -264,24 +264,18 @@ def bowtie(p, M, occ):
         ep = ep_ph
 
     if num_mismatches > 6:
-        q = mp.Queue()
         best_align_score = num_mismatches
         best_align = ((sp,ep+1), num_mismatches)
-        best_ix = None
-        ps = [mp.Process(target=bowtie_offset_queue, args=(p, M, occ, q, i, best_align, best_align_score)) for i in range(8)]
-        for proc in ps:
-            proc.start()
-        for i in range(8):
-            ix, j = q.get()
-            if j[1] < best_align_score:
-                best_align_score = j[1]
-                best_align = j
-                best_ix = ix
+        for j in range(first_mismatch, len(p)):
+            a = bowtie_offset(p, M, occ, [j])
+            if a[1] < best_align_score:
+                best_align = a
+                best_align_score = a[1]
         return best_align
     else:
         return ((sp,ep+1), num_mismatches)
 
-def bowtie_offset(p, M, occ, mismatches, n):
+def bowtie_offset(p, M, occ, mismatches):
     num_mismatches = 0
     length = len(p)
     last_char = p[-1]
@@ -304,14 +298,9 @@ def bowtie_offset(p, M, occ, mismatches, n):
     # changed for loop a bit, only works on strings len >= 2
     # for strings of len 1, it skips to the end and works
     for i in range(length-2,-1,-1):
-        last1 = p[i + 1]
-        if i < length - 1:
-            last2 = p[i + 2] + p[i + 1]
-        else:
-            last2 = last1 + last1
         if i in mismatches:
             # force a mismatch here
-            poss_switches = list(n(last1, last2))
+            poss_switches = list('$CGAT')
             poss_switches.remove(p[i])
             sp_ph = 1
             ep_ph = 0
