@@ -369,7 +369,7 @@ class Aligner:
         self.genome_M = get_M(get_F(self.genome_L))
         self.genome_occ = get_occ(self.genome_L)
 
-        buckets2 = {{x: 0 for x in 'ACTG'} for _ in 'ACTG'}
+        buckets2 = {y: {x: 0 for x in 'ACTG'} for y in 'ACTG'}
         for i in range(1, len(genome_sequence)):
             buckets2[genome_sequence[i]][genome_sequence[i - 1]] += 1
 
@@ -377,7 +377,7 @@ class Aligner:
         for x in 'ACTG':
             for y in 'ACTG':
                 cp.append(x + y)
-        buckets3 = {{x: 0 for x in 'ACTG'} for _ in cp}
+        buckets3 = {y: {x: 0 for x in 'ACTG'} for y in cp}
 
         for i in range(2, len(genome_sequence)):
             buckets2[genome_sequence[i-2] + genome_sequence[i-1]][genome_sequence[i]] += 1
