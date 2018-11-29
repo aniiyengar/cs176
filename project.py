@@ -380,21 +380,18 @@ class Aligner:
         buckets3 = {y: {x: 0 for x in 'ACTG'} for y in cp}
 
         for i in range(2, len(genome_sequence)):
-            buckets3[genome_sequence[i-2] + genome_sequence[i-1]][genome_sequence[i]] += 1
+            buckets2[genome_sequence[i-2] + genome_sequence[i-1]][genome_sequence[i]] += 1
 
-        # # normalize buckets
+        # normalize buckets
         for item in buckets2:
-            s = sum(buckets2[item].values())
-            print(s)
+            s = sum(buckets2[item]).items()
             for item1 in buckets2[item]:
-                buckets2[item][item1] /= float(s)
+                buckets2[item][item1] /= s
 
         for item in buckets3:
-            s = sum(buckets3[item].values())
-            if s > 0:
-                for item1 in buckets3[item]:
-                    buckets3[item][item1] /= float(s)
-
+            s = sum(buckets3[item]).items()
+            for item1 in buckets3[item]:
+                buckets3[item][item1] /= s
 
         def get_next(last1, last2):
             return '$' + 'ACTG'.sort(key=lambda x: -(buckets2[x][last1] * 0.6 + buckets3[x][last2] * 0.4))
