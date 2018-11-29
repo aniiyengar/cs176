@@ -263,13 +263,19 @@ def bowtie(p, M, occ):
         ep = ep_ph
 
     if num_mismatches > 6:
+        q = mp.Queue()
         best_align_score = num_mismatches
         best_align = ((sp,ep+1), num_mismatches)
-        for j in range(len(p)/2, len(p)):
-            a = bowtie_offset(p, M, occ, j)
-            if a[1] < best_align_score:
-                best_align = a
-                best_align_score = a[1]
+        best_ix = None
+        ps = [mp.Process(target=bowtie_offset_queue, args=(p, M, occ, q, i, best_align, best_align_score)) for i in range(8)]
+        for proc in ps:
+            proc.start()
+        for i in range(8):
+            ix, j = q.get()
+            if j[1] < best_align_score:
+                best_align_score = j[1]
+                best_align = j
+                best_ix = ix
         return best_align
     else:
         return ((sp,ep+1), num_mismatches)
@@ -327,6 +333,15 @@ def bowtie_offset(p, M, occ, mismatches):
             ep = ep_ph
 
     return ((sp,ep+1), num_mismatches)
+
+def bowtie_offset_queue(p, M, occ, queue, mod, best_align, best_align_score):
+    for j in range(len(p) - 10, len(p)):
+        for k in range(len(p) // 2, len(p) // 2 + 10):
+            a = bowtie_offset(p, M, occ, [j, k])
+            if a[1] < best_align_score:
+                best_align = a
+                best_align_score = a[1]
+    return queue.put(((j,k),best_align))
 
 def suffix_replacer(hits):
     (start, end), length = hits
