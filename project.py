@@ -37,6 +37,7 @@ def cmp_to_key(mycmp):
         def __ne__(self, other):
             return mycmp(self.obj, other.obj) != 0
     return K
+
 def get_suffix_array(s):
     """
     Naive implementation of suffix array generation (0-indexed). You do not have to implement the
@@ -334,15 +335,6 @@ def bowtie_offset(p, M, occ, mismatches):
 
     return ((sp,ep+1), num_mismatches)
 
-def bowtie_offset_queue(p, M, occ, queue, mod, best_align, best_align_score):
-    for j in range(len(p) - 10, len(p)):
-        for k in range(len(p) // 2, len(p) // 2 + 10):
-            a = bowtie_offset(p, M, occ, [j, k])
-            if a[1] < best_align_score:
-                best_align = a
-                best_align_score = a[1]
-    return queue.put(((j,k),best_align))
-
 def suffix_replacer(hits):
     (start, end), length = hits
     genome_seqs = []
@@ -465,6 +457,14 @@ class Aligner:
         
         # bowtie, read to isoforms
         # first see if the read matches a known isoform for under 6 mismatches
+        def suffix_replacer(a, hits):
+            (start, end), length = hits
+            genome_seqs = []
+            for i in range(start,end):
+                index = self.genome_sa[i]
+                genome_seqs.append((index,index+length))
+            return genome_seqs
+
         min_mismatches = float('inf')
         best_match = None
         for iso_name in self.iso_names:
@@ -508,15 +508,15 @@ class Aligner:
         else:
             min_mis = 7
             best_hits = []
-            hits = bowtie(read, a.genome_M, a.genome_occ)
+            hits = bowtie(read, self.genome_M, self.genome_occ)
             curr_mis = hits[1]
             if curr_mis < min_mis:
                 min_mis = curr_mis
                 best_hits = [(0, suffix_replacer(hits)[0][0], 50)]
             for offset in range(10, 41):
                 seed1, seed2 = read[:offset], read[offset:]
-                hits1 = bowtie(seed1, a.genome_M, a.genome_occ)
-                hits2 = bowtie(seed2, a.genome_M, a.genome_occ)
+                hits1 = bowtie(seed1, self.genome_M, self.genome_occ)
+                hits2 = bowtie(seed2, self.genome_M, self.genome_occ)
                 curr_mis = hits1[1] + hits2[1]
                 if curr_mis < min_mis:
                     hits1 = suffix_replacer(hits1)
@@ -532,9 +532,9 @@ class Aligner:
             for offset1 in range(10,31):
                 for offset2 in range(10+offset1, 41):
                     seed1, seed2,seed3 = read[:offset1], read[offset1:offset2], read[offset2:]
-                    hits1 = bowtie(seed1, a.genome_M, a.genome_occ)
-                    hits2 = bowtie(seed2, a.genome_M, a.genome_occ)
-                    hits3 = bowtie(seed3, a.genome_M, a.genome_occ)
+                    hits1 = bowtie(seed1, self.genome_M, self.genome_occ)
+                    hits2 = bowtie(seed2, self.genome_M, self.genome_occ)
+                    hits3 = bowtie(seed3, self.genome_M, self.genome_occ)
                     curr_mis = hits1[1] + hits2[1] + hits3[1]
                     if curr_mis < min_mis:
                         hits1 = suffix_replacer(hits1)
@@ -552,9 +552,3 @@ class Aligner:
                                         break
             return best_hits
         return []
-            
-s = 'CATCGATGCTAGCTAGCTAGTCAGTCGATGCTAGCTAGTCGATGTCGATGCTAGCTAGCTAGTCGATGCATGCTAGCTAGTCAGTCGATCGATGCTAGCTAGCTAGTCGATCGATCGATGCTAGCTAGCTAGCTAGCTAGTCGATCGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGTCGATCGATGCTAGCTAGTCGATGCTGCATGATCGATAGCTAGC$'
-sa = get_suffix_array(s)
-L = get_bwt(s, sa)
-M = get_M(get_F(L))
-occ = get_occ(L)
