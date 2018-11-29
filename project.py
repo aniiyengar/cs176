@@ -247,7 +247,7 @@ def bowtie(p, M, occ):
         sp_ph = M[p[i]] + occ[p[i]][sp-1]
         ep_ph = M[p[i]] + occ[p[i]][ep]-1
 
-        poss_switches = list('$CGAT')
+        poss_switches = ALPHABET.copy()
         poss_switches.remove(p[i])
         is_mismatch = False
         while sp_ph > ep_ph and poss_switches:
@@ -302,7 +302,7 @@ def bowtie_offset(p, M, occ, first_mismatch):
     for i in range(length-2,-1,-1):
         if i == first_mismatch:
             # force a mismatch here
-            poss_switches = ALPHABET.copy()
+            poss_switches = list('$CGAT')
             poss_switches.remove(p[i])
             sp_ph = 1
             ep_ph = 0
